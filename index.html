@@ -174,16 +174,17 @@
             position: fixed;
             bottom: 2rem;
             left: 50%;
-            transform: translateX(-50%) translateY(100px);
+            transform: translateX(-50%) translateY(200%);
             background: #1a1a2e;
             color: white;
             padding: 1rem 2rem;
             border-radius: 10px;
             font-weight: 600;
-            transition: transform 0.3s ease;
+            transition: transform 0.3s ease, visibility 0.3s;
             z-index: 100;
+            visibility: hidden;
         }
-        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.show { transform: translateX(-50%) translateY(0); visibility: visible; }
         .event-info { display: flex; gap: 1rem; flex-wrap: wrap; }
         .event-info > div { flex: 1; min-width: 200px; }
         .modal-overlay {
