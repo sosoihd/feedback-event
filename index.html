@@ -680,9 +680,27 @@
         // Set today's date
         document.querySelector('input[name="event_date"]').valueAsDate = new Date();
 
-        // Register Service Worker for PWA
+        // Register Service Worker for PWA + auto-refresh on update
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                // Vérifie les mises à jour toutes les 60 secondes
+                setInterval(() => reg.update(), 60 * 1000);
+
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        // Nouveau SW activé = nouvelle version dispo → reload auto
+                        if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+                            window.location.reload();
+                        }
+                    });
+                });
+            });
+
+            // Reload si un nouveau SW prend le contrôle
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+            });
         }
     </script>
 </body>

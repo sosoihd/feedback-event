@@ -1,13 +1,13 @@
-const CACHE_NAME = 'feedback-v1';
+const CACHE_NAME = 'feedback-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
+  './icon-512.png'
 ];
 
+// Install: cache les fichiers puis prend le contrôle immédiatement
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
@@ -15,17 +15,30 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
+// Activate: supprime les anciens caches et prend le contrôle des pages ouvertes
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// Fetch: stratégie "network first"
+// Essaie toujours le réseau en premier, met à jour le cache,
+// et ne sert le cache que si le réseau est indisponible (hors ligne)
 self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(response => {
+        // Met à jour le cache avec la nouvelle version
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        return response;
+      })
+      .catch(() => {
+        // Hors ligne : sert depuis le cache
+        return caches.match(e.request);
+      })
   );
 });
