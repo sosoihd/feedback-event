@@ -10,6 +10,8 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <title>Feedback Événement</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -514,10 +516,15 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        // ========== PDF Generation (window.print method) ==========
+        // ========== PDF Generation (iframe + html2canvas + jsPDF) ==========
         function generatePDF() {
             if (!lastFeedback) return;
             const d = lastFeedback;
+
+            const btn = document.querySelector('.btn-pdf');
+            const originalText = btn.textContent;
+            btn.textContent = 'Génération en cours...';
+            btn.disabled = true;
 
             function badgeHtml(val, type) {
                 const map = {
@@ -527,162 +534,129 @@
                     'À améliorer': ['#fff3e0','#e65100'],
                 };
                 const c = map[type || val] || ['#e3f2fd','#1565c0'];
-                return `<span style="display:inline-block;padding:5px 18px;border-radius:20px;font-size:13px;font-weight:700;background:${c[0]};color:${c[1]}">${esc(val)}</span>`;
+                return '<span style="display:inline-block;padding:5px 18px;border-radius:20px;font-size:13px;font-weight:700;background:'+c[0]+';color:'+c[1]+'">'+esc(val)+'</span>';
             }
 
             function commentHtml(val) {
                 if (!val || !val.trim()) return '<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:6px;font-size:13px;color:#bbb;font-style:italic">Aucun commentaire</div>';
-                return `<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:6px;font-size:13px;line-height:1.7;color:#3a3a4a;white-space:pre-wrap">${esc(val)}</div>`;
+                return '<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:6px;font-size:13px;line-height:1.7;color:#3a3a4a;white-space:pre-wrap">'+esc(val)+'</div>';
             }
 
             const secColors = ['#4a90d9','#e67e22','#8e44ad','#27ae60','#e74c3c','#2c3e50','#16a085'];
 
             function sectionHeader(num, title) {
-                return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f0f0f5">
-                    <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;background:${secColors[num-1]}">${num}</div>
-                    <div style="font-size:16px;font-weight:700;color:#1a1a2e">${title}</div>
-                </div>`;
+                return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f0f0f5"><div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;background:'+secColors[num-1]+'">'+num+'</div><div style="font-size:16px;font-weight:700;color:#1a1a2e">'+title+'</div></div>';
             }
 
             function row(label, value) {
-                return `<div style="display:flex;align-items:flex-start;padding:8px 0;gap:12px">
-                    <div style="font-size:11px;font-weight:600;color:#777;text-transform:uppercase;letter-spacing:0.5px;min-width:150px;padding-top:3px">${label}</div>
-                    <div style="font-size:13px;color:#2c2c3e;line-height:1.6;flex:1">${value}</div>
-                </div>`;
+                return '<div style="display:flex;align-items:flex-start;padding:8px 0;gap:12px"><div style="font-size:11px;font-weight:600;color:#777;text-transform:uppercase;letter-spacing:0.5px;min-width:150px;padding-top:3px">'+label+'</div><div style="font-size:13px;color:#2c2c3e;line-height:1.6;flex:1">'+value+'</div></div>';
             }
 
-            // Photos HTML - large and visible
             let photosHtml = '';
             if (photoDataUrls.length > 0) {
                 photosHtml = '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">' +
-                    photoDataUrls.map(url =>
-                        `<img src="${url}" style="width:220px;height:180px;object-fit:cover;border-radius:10px;border:1px solid #e0e0e0">`
-                    ).join('') + '</div>';
+                    photoDataUrls.map(function(url) {
+                        return '<img src="'+url+'" style="width:220px;height:180px;object-fit:cover;border-radius:10px;border:1px solid #e0e0e0">';
+                    }).join('') + '</div>';
             } else {
                 photosHtml = '<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;color:#bbb;font-style:italic">Aucune photo jointe</div>';
             }
 
-            // Incidents
             let incidentsRows = '';
             if (d.incidents === 'Oui') {
                 incidentsRows = row('Détail', commentHtml(d.incidents_detail));
             }
 
-            const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Feedback - ${esc(d.event_name)}</title>
-<style>
-    @page { size: A4; margin: 0; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1e1e2f; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @media print {
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-</style>
-</head>
-<body>
+            // Build PDF content inside an iframe for reliable html2canvas capture
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;top:0;left:0;width:794px;height:1123px;border:none;z-index:-1;opacity:0.01;';
+            document.body.appendChild(iframe);
 
-<div style="background:#1a1a2e;color:white;padding:40px 50px 35px">
-    <div style="font-size:11px;text-transform:uppercase;letter-spacing:4px;opacity:0.6;margin-bottom:12px">Rapport de prestation</div>
-    <div style="font-size:28px;font-weight:800;margin-bottom:6px;letter-spacing:-0.5px">${esc(d.event_name)}</div>
-    <div style="font-size:14px;opacity:0.7">Feedback post-événement</div>
-</div>
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            iframeDoc.open();
+            iframeDoc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;color:#1e1e2f;background:#fff;width:794px}</style></head><body>' +
 
-<div style="display:flex;flex-wrap:wrap;background:#f7f8fa;border-bottom:1px solid #e8e8ec">
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Date</div>
-        <div style="font-size:14px;font-weight:700;color:#1a1a2e">${esc(formatDate(d.event_date))}</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Lieu</div>
-        <div style="font-size:14px;font-weight:700;color:#1a1a2e">${esc(d.event_lieu)}</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Rapporteur</div>
-        <div style="font-size:14px;font-weight:700;color:#1a1a2e">${esc(d.reporter)}</div>
-    </div>
-    <div style="flex:1;padding:16px 20px;min-width:140px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Généré le</div>
-        <div style="font-size:14px;font-weight:700;color:#1a1a2e">${new Date().toLocaleDateString('fr-FR')}</div>
-    </div>
-</div>
+            '<div style="background:#1a1a2e;color:white;padding:40px 50px 35px">' +
+                '<div style="font-size:11px;text-transform:uppercase;letter-spacing:4px;opacity:0.6;margin-bottom:12px">Rapport de prestation</div>' +
+                '<div style="font-size:28px;font-weight:800;margin-bottom:6px;letter-spacing:-0.5px">'+esc(d.event_name)+'</div>' +
+                '<div style="font-size:14px;opacity:0.7">Feedback post-événement</div>' +
+            '</div>' +
 
-<div style="padding:30px 50px 40px">
+            '<div style="display:flex;flex-wrap:wrap;background:#f7f8fa;border-bottom:1px solid #e8e8ec">' +
+                '<div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Date</div><div style="font-size:14px;font-weight:700;color:#1a1a2e">'+esc(formatDate(d.event_date))+'</div></div>' +
+                '<div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Lieu</div><div style="font-size:14px;font-weight:700;color:#1a1a2e">'+esc(d.event_lieu)+'</div></div>' +
+                '<div style="flex:1;padding:16px 20px;border-right:1px solid #e8e8ec;min-width:140px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Rapporteur</div><div style="font-size:14px;font-weight:700;color:#1a1a2e">'+esc(d.reporter)+'</div></div>' +
+                '<div style="flex:1;padding:16px 20px;min-width:140px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:4px;font-weight:600">Généré le</div><div style="font-size:14px;font-weight:700;color:#1a1a2e">'+new Date().toLocaleDateString('fr-FR')+'</div></div>' +
+            '</div>' +
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(1, 'Déroulé général')}
-        ${row('Événement bien passé', badgeHtml(d.bien_passe))}
-        ${row('Commentaires', commentHtml(d.commentaires_generaux))}
-    </div>
+            '<div style="padding:30px 50px 40px">' +
+                '<div style="margin-bottom:28px">' + sectionHeader(1,'Déroulé général') + row('Événement bien passé', badgeHtml(d.bien_passe)) + row('Commentaires', commentHtml(d.commentaires_generaux)) + '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(2,'Food & Beverage') + row('Retours', commentHtml(d.food_retours)) + '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(3,'Technique') + row('Incidents techniques', d.incidents === 'Non' ? badgeHtml('Aucun incident','Non-incident') : badgeHtml('Incidents signalés','Oui-incident')) + incidentsRows + row('Sono / Écran / Vidéo', commentHtml(d.sono_ecran)) + row('Autre', commentHtml(d.technique_autre)) + '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(4,'Équipes & Staff') + row('Collaboration', badgeHtml(d.collab)) + row('Commentaires', commentHtml(d.collab_commentaires)) + '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(5,'Photos') + photosHtml + '</div>' +
+                '<div style="height:1px;background:#e0e0e8;margin:24px 0"></div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(6,'Horaires') +
+                    '<div style="display:flex;gap:20px;margin-top:4px"><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Départ clients</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_clients||'-')+'</div></div><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Fin prestation / Départ staffs</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_staffs||'-')+'</div></div></div>' +
+                '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(7,'Autres remarques') + row('Remarques', commentHtml(d.autres)) + '</div>' +
+            '</div>' +
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(2, 'Food & Beverage')}
-        ${row('Retours', commentHtml(d.food_retours))}
-    </div>
+            '<div style="text-align:center;padding:20px 50px;border-top:1px solid #eee;font-size:10px;color:#aaa">Feedback généré automatiquement — '+esc(d.event_name)+' — '+esc(formatDate(d.event_date))+'</div>' +
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(3, 'Technique')}
-        ${row('Incidents techniques', d.incidents === 'Non' ? badgeHtml('Aucun incident', 'Non-incident') : badgeHtml('Incidents signalés', 'Oui-incident'))}
-        ${incidentsRows}
-        ${row('Sono / Écran / Vidéo', commentHtml(d.sono_ecran))}
-        ${row('Autre', commentHtml(d.technique_autre))}
-    </div>
+            '</body></html>');
+            iframeDoc.close();
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(4, 'Équipes & Staff')}
-        ${row('Collaboration', badgeHtml(d.collab))}
-        ${row('Commentaires', commentHtml(d.collab_commentaires))}
-    </div>
+            // Wait for iframe content (including images) to fully render
+            iframe.onload = function() {
+                const body = iframeDoc.body;
+                const imgs = body.querySelectorAll('img');
+                const imgPromises = Array.from(imgs).map(function(img) {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(function(resolve) {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    });
+                });
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(5, 'Photos')}
-        ${photosHtml}
-    </div>
+                Promise.all(imgPromises).then(function() {
+                    return new Promise(function(r) { setTimeout(r, 300); });
+                }).then(function() {
+                    return html2canvas(body, {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false,
+                        width: 794,
+                        windowWidth: 794,
+                        backgroundColor: '#ffffff'
+                    });
+                }).then(function(canvas) {
+                    var imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    var pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+                    var pdfWidth = 210;
+                    var pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                    var pageHeight = 297;
+                    var position = 0;
 
-    <div style="height:1px;background:#e0e0e8;margin:24px 0"></div>
+                    // Multi-page support
+                    while (position < pdfHeight) {
+                        if (position > 0) pdf.addPage();
+                        pdf.addImage(imgData, 'JPEG', 0, -position, pdfWidth, pdfHeight);
+                        position += pageHeight;
+                    }
 
-    <div style="margin-bottom:28px">
-        ${sectionHeader(6, 'Horaires')}
-        <div style="display:flex;gap:20px;margin-top:4px">
-            <div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center">
-                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Départ clients</div>
-                <div style="font-size:22px;font-weight:800;color:#1a1a2e">${d.depart_clients || '-'}</div>
-            </div>
-            <div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center">
-                <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Fin prestation / Départ staffs</div>
-                <div style="font-size:22px;font-weight:800;color:#1a1a2e">${d.depart_staffs || '-'}</div>
-            </div>
-        </div>
-    </div>
-
-    <div style="margin-bottom:28px">
-        ${sectionHeader(7, 'Autres remarques')}
-        ${row('Remarques', commentHtml(d.autres))}
-    </div>
-
-</div>
-
-<div style="text-align:center;padding:20px 50px;border-top:1px solid #eee;font-size:10px;color:#aaa">
-    Feedback généré automatiquement — ${esc(d.event_name)} — ${esc(formatDate(d.event_date))}
-</div>
-
-<script>
-    window.onload = function() {
-        setTimeout(function() { window.print(); }, 400);
-    };
-<\/script>
-</body>
-</html>`;
-
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) {
-                alert('Le navigateur a bloqué la fenêtre. Autorisez les popups pour ce site.');
-                return;
-            }
-            printWindow.document.write(html);
-            printWindow.document.close();
+                    pdf.save('Feedback-' + (d.event_name || 'event') + '-' + (d.event_date || 'date') + '.pdf');
+                    document.body.removeChild(iframe);
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }).catch(function(err) {
+                    console.error('PDF error:', err);
+                    document.body.removeChild(iframe);
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+                });
+            };
         }
 
         // Set today's date
