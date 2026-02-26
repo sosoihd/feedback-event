@@ -110,52 +110,6 @@
         textarea { min-height: 80px; }
         .conditional { display: none; margin-top: 0.8rem; }
         .conditional.visible { display: block; }
-        .file-upload {
-            margin-top: 0.5rem;
-            border: 2px dashed #d0d0d0;
-            border-radius: 8px;
-            padding: 1.5rem;
-            text-align: center;
-            cursor: pointer;
-            transition: border-color 0.2s, background 0.2s;
-            position: relative;
-        }
-        .file-upload:hover { border-color: #1a1a2e; background: #fafafa; }
-        .file-upload input[type="file"] {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-        .file-upload-text { color: #888; font-size: 0.85rem; }
-        .file-upload-text span { font-size: 1.5rem; display: block; margin-bottom: 0.3rem; }
-        .preview-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.8rem;
-        }
-        .preview-item {
-            position: relative;
-            width: 80px;
-            height: 80px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .preview-item img { width: 100%; height: 100%; object-fit: cover; }
-        .preview-item button {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 22px;
-            height: 22px;
-            cursor: pointer;
-            font-size: 0.7rem;
-        }
         .time-row { display: flex; gap: 1rem; }
         .time-row > div { flex: 1; }
         .submit-btn {
@@ -333,22 +287,6 @@
             <div class="section">
                 <div class="section-title">
                     <div class="section-number">5</div>
-                    Photos
-                </div>
-                <label>Joindre des photos (événement, stock, ambiance, etc.)</label>
-                <div class="file-upload" id="fileUploadArea">
-                    <input type="file" id="stockPhotos" name="photos" accept="image/*" multiple>
-                    <div class="file-upload-text">
-                        <span>📸</span>
-                        Appuyez ou glissez vos photos ici
-                    </div>
-                </div>
-                <div class="preview-grid" id="previewGrid"></div>
-            </div>
-
-            <div class="section">
-                <div class="section-title">
-                    <div class="section-number">6</div>
                     Horaires
                 </div>
                 <div class="time-row">
@@ -357,15 +295,17 @@
                         <input type="time" name="depart_clients">
                     </div>
                     <div>
-                        <label>Fin de prestation / départ staffs</label>
+                        <label>Fin de prestation</label>
                         <input type="time" name="depart_staffs">
                     </div>
                 </div>
+                <label>Départ staff (nom + heure)</label>
+                <textarea name="depart_staff_detail" placeholder="Ex : Jean 23h30, Marie 00h15, Paul 01h00..."></textarea>
             </div>
 
             <div class="section">
                 <div class="section-title">
-                    <div class="section-number">7</div>
+                    <div class="section-number">6</div>
                     Autres
                 </div>
                 <label>Remarques supplémentaires</label>
@@ -399,43 +339,6 @@
             });
         });
 
-        // Photo handling
-        const fileInput = document.getElementById('stockPhotos');
-        const previewGrid = document.getElementById('previewGrid');
-        let selectedFiles = [];
-        let photoDataUrls = [];
-
-        fileInput.addEventListener('change', (e) => {
-            const newFiles = Array.from(e.target.files);
-            selectedFiles.push(...newFiles);
-            newFiles.forEach(file => {
-                const reader = new FileReader();
-                reader.onload = (ev) => photoDataUrls.push(ev.target.result);
-                reader.readAsDataURL(file);
-            });
-            renderPreviews();
-        });
-
-        function renderPreviews() {
-            previewGrid.innerHTML = '';
-            selectedFiles.forEach((file, i) => {
-                const div = document.createElement('div');
-                div.className = 'preview-item';
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                const btn = document.createElement('button');
-                btn.textContent = '\u2715';
-                btn.onclick = () => {
-                    selectedFiles.splice(i, 1);
-                    photoDataUrls.splice(i, 1);
-                    renderPreviews();
-                };
-                div.appendChild(img);
-                div.appendChild(btn);
-                previewGrid.appendChild(div);
-            });
-        }
-
         // Helpers
         function esc(str) {
             const d = document.createElement('div');
@@ -457,9 +360,8 @@
             const fd = new FormData(e.target);
             const data = {};
             for (const [key, value] of fd.entries()) {
-                if (key !== 'photos') data[key] = value;
+                data[key] = value;
             }
-            data.photos_count = selectedFiles.length;
             data.submitted_at = new Date().toISOString();
             lastFeedback = data;
 
@@ -486,14 +388,12 @@
                 `Collaboration : ${data.collab}`,
                 `Commentaires : ${data.collab_commentaires || '-'}`,
                 ``,
-                `── 5. Photos ──`,
-                `Photos jointes : ${data.photos_count}`,
-                ``,
-                `── 6. Horaires ──`,
+                `── 5. Horaires ──`,
                 `Départ clients : ${data.depart_clients || '-'}`,
-                `Départ staffs : ${data.depart_staffs || '-'}`,
+                `Fin prestation : ${data.depart_staffs || '-'}`,
+                `Départ staff : ${data.depart_staff_detail || '-'}`,
                 ``,
-                `── 7. Autres ──`,
+                `── 6. Autres ──`,
                 `${data.autres || '-'}`,
             ].filter(l => l !== undefined).join('\n');
 
@@ -542,7 +442,7 @@
                 return '<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:6px;font-size:13px;line-height:1.7;color:#3a3a4a;white-space:pre-wrap">'+esc(val)+'</div>';
             }
 
-            var secColors = ['#4a90d9','#e67e22','#8e44ad','#27ae60','#e74c3c','#2c3e50','#16a085'];
+            var secColors = ['#4a90d9','#e67e22','#8e44ad','#27ae60','#e74c3c','#2c3e50'];
 
             function sectionHeader(num, title) {
                 return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f0f0f5"><div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;background:'+secColors[num-1]+'">'+num+'</div><div style="font-size:16px;font-weight:700;color:#1a1a2e">'+title+'</div></div>';
@@ -550,16 +450,6 @@
 
             function row(label, value) {
                 return '<div style="display:flex;align-items:flex-start;padding:8px 0;gap:12px"><div style="font-size:11px;font-weight:600;color:#777;text-transform:uppercase;letter-spacing:0.5px;min-width:150px;padding-top:3px">'+label+'</div><div style="font-size:13px;color:#2c2c3e;line-height:1.6;flex:1">'+value+'</div></div>';
-            }
-
-            var photosHtml = '';
-            if (photoDataUrls.length > 0) {
-                photosHtml = '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">' +
-                    photoDataUrls.map(function(url) {
-                        return '<img src="'+url+'" style="width:220px;height:180px;object-fit:cover;border-radius:10px;border:1px solid #e0e0e0">';
-                    }).join('') + '</div>';
-            } else {
-                photosHtml = '<div style="background:#f8f9fb;border-left:3px solid #d0d0e0;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;color:#bbb;font-style:italic">Aucune photo jointe</div>';
             }
 
             var incidentsRows = '';
@@ -594,12 +484,12 @@
                 '<div style="margin-bottom:28px">' + sectionHeader(2,'Food & Beverage') + row('Retours', commentHtml(d.food_retours)) + '</div>' +
                 '<div style="margin-bottom:28px">' + sectionHeader(3,'Technique') + row('Incidents techniques', d.incidents === 'Non' ? badgeHtml('Aucun incident','Non-incident') : badgeHtml('Incidents signalés','Oui-incident')) + incidentsRows + row('Sono / Écran / Vidéo', commentHtml(d.sono_ecran)) + row('Autre', commentHtml(d.technique_autre)) + '</div>' +
                 '<div style="margin-bottom:28px">' + sectionHeader(4,'Équipes & Staff') + row('Collaboration', badgeHtml(d.collab)) + row('Commentaires', commentHtml(d.collab_commentaires)) + '</div>' +
-                '<div style="margin-bottom:28px">' + sectionHeader(5,'Photos') + photosHtml + '</div>' +
                 '<div style="height:1px;background:#e0e0e8;margin:24px 0"></div>' +
-                '<div style="margin-bottom:28px">' + sectionHeader(6,'Horaires') +
-                    '<div style="display:flex;gap:20px;margin-top:4px"><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Départ clients</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_clients||'-')+'</div></div><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Fin prestation / Départ staffs</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_staffs||'-')+'</div></div></div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(5,'Horaires') +
+                    '<div style="display:flex;gap:20px;margin-top:4px"><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Départ clients</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_clients||'-')+'</div></div><div style="flex:1;background:#f7f8fa;border-radius:10px;padding:16px 20px;text-align:center"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:600">Fin prestation</div><div style="font-size:22px;font-weight:800;color:#1a1a2e">'+(d.depart_staffs||'-')+'</div></div></div>' +
+                    row('Départ staff', commentHtml(d.depart_staff_detail)) +
                 '</div>' +
-                '<div style="margin-bottom:28px">' + sectionHeader(7,'Autres remarques') + row('Remarques', commentHtml(d.autres)) + '</div>' +
+                '<div style="margin-bottom:28px">' + sectionHeader(6,'Autres remarques') + row('Remarques', commentHtml(d.autres)) + '</div>' +
             '</div>' +
 
             '<div style="text-align:center;padding:20px 50px;border-top:1px solid #eee;font-size:10px;color:#aaa">Feedback généré automatiquement — '+esc(d.event_name)+' — '+esc(formatDate(d.event_date))+'</div>';
