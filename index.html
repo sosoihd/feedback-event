@@ -384,8 +384,8 @@
             }
             // Parse date range from flatpickr
             const selectedDates = dateRangePicker.selectedDates;
-            data.event_date_start = selectedDates[0] ? selectedDates[0].toISOString().split('T')[0] : '';
-            data.event_date_end = selectedDates[1] ? selectedDates[1].toISOString().split('T')[0] : '';
+            data.event_date_start = selectedDates[0] ? [selectedDates[0].getFullYear(), String(selectedDates[0].getMonth()+1).padStart(2,'0'), String(selectedDates[0].getDate()).padStart(2,'0')].join('-') : '';
+            data.event_date_end = selectedDates[1] ? [selectedDates[1].getFullYear(), String(selectedDates[1].getMonth()+1).padStart(2,'0'), String(selectedDates[1].getDate()).padStart(2,'0')].join('-') : '';
             data.submitted_at = new Date().toISOString();
             lastFeedback = data;
 
